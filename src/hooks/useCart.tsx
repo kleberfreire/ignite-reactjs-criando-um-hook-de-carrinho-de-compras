@@ -23,52 +23,61 @@ const CartContext = createContext<CartContextData>({} as CartContextData);
 
 export function CartProvider({ children }: CartProviderProps): JSX.Element {
   const [cart, setCart] = useState<Product[]>(() => {
+    // localStorage.setItem("@RocketShoes:cart", JSON.stringify([]));
     const storagedCart = localStorage.getItem("@RocketShoes:cart");
 
     if (storagedCart) {
       return JSON.parse(storagedCart);
     }
 
-    return [];
+    return [cart];
   });
 
   const addProduct = async (productId: number) => {
     try {
       const { data: responseProduct } = await api.get(`/products/${productId}`);
       const { data: stock } = await api.get(`/stock/${productId}`);
-      console.log(responseProduct);
+
       console.log(stock);
 
-      const productInCart = cart.find((p) => p.id === productId);
+      const getProducts = localStorage.getItem("@RocketShoes:cart");
 
-      if (stock.amount === 0) {
-        toast.error("Produto sem estoque");
-        return;
-      }
-      if (productInCart) {
-        if (productInCart?.amount >= stock.amount) {
-          toast.error("Produto sem estoque");
+      const products: Product[] = getProducts ? JSON.parse(getProducts) : [];
+      const productInCart = products.find((p) => p.id === productId);
+
+      const verifyCartAndStock = (): boolean => {
+        if (productInCart) {
+          if (productInCart.amount >= stock.amount) {
+            return false;
+          }
         } else {
-          const newCart: Product[] = cart.map((p) =>
-            p.id === productId ? { ...p, amount: p.amount++ } : p
-          );
-
-          setCart(newCart);
-          localStorage.setItem("@RocketShoes:cart", JSON.stringify(cart));
-          toast.success("Produto adicionado ao carrinho");
+          return false;
         }
-      }
-      if (stock.amount === 0) {
-        toast.error("Produto sem estoque");
-      } else {
+        return true;
+      };
+
+      if (stock.amount > 0 && verifyCartAndStock()) {
+        const newCart: Product[] = cart.map((p) =>
+          p.id === productId ? { ...p, amount: p.amount + 1 } : p
+        );
+
+        setCart(newCart);
+        localStorage.setItem("@RocketShoes:cart", JSON.stringify(newCart));
+
+        toast.success("Produto adicionado ao carrinho");
+      } else if (!productInCart && stock.amount > 0) {
         const newProduct: Product = {
           ...responseProduct,
           amount: 1,
         };
-        localStorage.setItem("@RocketShoes:cart", JSON.stringify(cart));
-        setCart([...cart, newProduct]);
+        const newCart: Product[] = [...cart, newProduct];
+
+        setCart(newCart);
+
+        localStorage.setItem("@RocketShoes:cart", JSON.stringify(newCart));
         toast.success("Produto adicionado ao carrinho");
-        console.log(cart);
+      } else {
+        toast.error("Produto sem estoque");
       }
     } catch {
       toast.error("Produto não encontrado");
@@ -78,7 +87,7 @@ export function CartProvider({ children }: CartProviderProps): JSX.Element {
   const removeProduct = (productId: number) => {
     try {
       const newCart = cart.filter((p) => p.id !== productId);
-      setCart(newCart);
+      setCart((prev) => newCart);
       toast.success("Produto removido com sucesso");
     } catch {
       toast.error("Produto não encontrado");
