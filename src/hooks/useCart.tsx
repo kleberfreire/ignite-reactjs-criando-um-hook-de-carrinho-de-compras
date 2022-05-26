@@ -1,7 +1,7 @@
-import { createContext, ReactNode, useContext, useState } from 'react';
-import { toast } from 'react-toastify';
-import { api } from '../services/api';
-import { Product, Stock } from '../types';
+import { createContext, ReactNode, useContext, useState } from "react";
+import { toast } from "react-toastify";
+import { api } from "../services/api";
+import { Product, Stock } from "../types";
 
 interface CartProviderProps {
   children: ReactNode;
@@ -23,28 +23,65 @@ const CartContext = createContext<CartContextData>({} as CartContextData);
 
 export function CartProvider({ children }: CartProviderProps): JSX.Element {
   const [cart, setCart] = useState<Product[]>(() => {
-    // const storagedCart = Buscar dados do localStorage
+    const storagedCart = localStorage.getItem("@RocketShoes:cart");
 
-    // if (storagedCart) {
-    //   return JSON.parse(storagedCart);
-    // }
+    if (storagedCart) {
+      return JSON.parse(storagedCart);
+    }
 
     return [];
   });
 
   const addProduct = async (productId: number) => {
     try {
-      // TODO
+      const { data: responseProduct } = await api.get(`/products/${productId}`);
+      const { data: stock } = await api.get(`/stock/${productId}`);
+      console.log(responseProduct);
+      console.log(stock);
+
+      const productInCart = cart.find((p) => p.id === productId);
+
+      if (stock.amount === 0) {
+        toast.error("Produto sem estoque");
+        return;
+      }
+      if (productInCart) {
+        if (productInCart?.amount >= stock.amount) {
+          toast.error("Produto sem estoque");
+        } else {
+          const newCart: Product[] = cart.map((p) =>
+            p.id === productId ? { ...p, amount: p.amount++ } : p
+          );
+
+          setCart(newCart);
+          localStorage.setItem("@RocketShoes:cart", JSON.stringify(cart));
+          toast.success("Produto adicionado ao carrinho");
+        }
+      }
+      if (stock.amount === 0) {
+        toast.error("Produto sem estoque");
+      } else {
+        const newProduct: Product = {
+          ...responseProduct,
+          amount: 1,
+        };
+        localStorage.setItem("@RocketShoes:cart", JSON.stringify(cart));
+        setCart([...cart, newProduct]);
+        toast.success("Produto adicionado ao carrinho");
+        console.log(cart);
+      }
     } catch {
-      // TODO
+      toast.error("Produto não encontrado");
     }
   };
 
   const removeProduct = (productId: number) => {
     try {
-      // TODO
+      const newCart = cart.filter((p) => p.id !== productId);
+      setCart(newCart);
+      toast.success("Produto removido com sucesso");
     } catch {
-      // TODO
+      toast.error("Produto não encontrado");
     }
   };
 
@@ -53,9 +90,20 @@ export function CartProvider({ children }: CartProviderProps): JSX.Element {
     amount,
   }: UpdateProductAmount) => {
     try {
-      // TODO
+      const { data: stock } = await api.get(`/stock/${productId}`);
+
+      if (amount > stock.amount) {
+        toast.error("Produto sem estoque");
+      } else {
+        const newCart = cart.map((p) =>
+          p.id === productId ? { ...p, amount } : p
+        );
+
+        setCart(newCart);
+        toast.success("Produto atualizado com sucesso");
+      }
     } catch {
-      // TODO
+      toast.error("Produto não encontrado");
     }
   };
 
